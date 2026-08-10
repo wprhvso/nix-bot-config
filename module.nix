@@ -26,6 +26,12 @@ let
     "canManageTopics"
   ];
 
+  chatScopes = [
+    "chat"
+    "chat_administrators"
+    "chat_member"
+  ];
+
   snake =
     name:
     lib.concatStrings (
@@ -53,7 +59,7 @@ let
 
   localizedType = lib.types.attrsOf lib.types.str;
 
-  renderLocalized = v: lib.mapAttrs' (l: s: lib.nameValuePair (if l == "default" then "" else l) s) v;
+  renderLocalized = lib.mapAttrs' (l: lib.nameValuePair (if l == "default" then "" else l));
 
   scopeType = lib.types.submodule {
     options = {
@@ -86,7 +92,7 @@ let
   renderScope =
     s:
     {
-      type = s.type;
+      inherit (s) type;
     }
     // lib.optionalAttrs (s.chatId != null) { chat_id = s.chatId; }
     // lib.optionalAttrs (s.userId != null) { user_id = s.userId; };
@@ -154,71 +160,68 @@ let
   renderMenuButton = b: {
     chat_id = b.chatId;
     button = {
-      type = b.type;
+      inherit (b) type;
     }
     // lib.optionalAttrs (b.type == "web_app") {
-      text = b.text;
+      inherit (b) text;
       web_app.url = b.webAppUrl;
     };
   };
 
-  botType = lib.types.submodule (
-    { ... }: {
-      options = {
-        id = lib.mkOption {
-          type = lib.types.int;
-          description = "Numeric bot id used to look up its token in the tokens file.";
-        };
-        apiEndpoint = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
+  botType = lib.types.submodule {
+    options = {
+      id = lib.mkOption {
+        type = lib.types.int;
+        description = "Numeric bot id used to look up its token in the tokens file.";
+      };
+      apiEndpoint = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Bot API endpoint overriding the global one.";
+      };
+      name = lib.mkOption {
+        type = localizedType;
+        default = { };
+        description = "Bot name per language code, using default for the fallback.";
+      };
+      description = lib.mkOption {
+        type = localizedType;
+        default = { };
+        description = "Bot description per language code.";
+      };
+      shortDescription = lib.mkOption {
+        type = localizedType;
+        default = { };
+        description = "Bot short description per language code.";
+      };
+      commands = lib.mkOption {
+        type = lib.types.listOf commandGroupType;
+        default = [ ];
+        description = "Command lists per scope and language.";
+      };
+      defaultAdministratorRights = {
+        groups = lib.mkOption {
+          type = lib.types.nullOr rightsType;
           default = null;
-          description = "Bot API endpoint overriding the global one.";
+          description = "Default administrator rights in groups and supergroups.";
         };
-        name = lib.mkOption {
-          type = localizedType;
-          default = { };
-          description = "Bot name per language code, using default for the fallback.";
-        };
-        description = lib.mkOption {
-          type = localizedType;
-          default = { };
-          description = "Bot description per language code.";
-        };
-        shortDescription = lib.mkOption {
-          type = localizedType;
-          default = { };
-          description = "Bot short description per language code.";
-        };
-        commands = lib.mkOption {
-          type = lib.types.listOf commandGroupType;
-          default = [ ];
-          description = "Command lists per scope and language.";
-        };
-        defaultAdministratorRights = {
-          groups = lib.mkOption {
-            type = lib.types.nullOr rightsType;
-            default = null;
-            description = "Default administrator rights in groups and supergroups.";
-          };
-          channels = lib.mkOption {
-            type = lib.types.nullOr rightsType;
-            default = null;
-            description = "Default administrator rights in channels.";
-          };
-        };
-        menuButton = lib.mkOption {
-          type = lib.types.listOf menuButtonType;
-          default = [ ];
-          description = "Chat menu buttons, globally and per chat.";
+        channels = lib.mkOption {
+          type = lib.types.nullOr rightsType;
+          default = null;
+          description = "Default administrator rights in channels.";
         };
       };
-    }
-  );
+      menuButton = lib.mkOption {
+        type = lib.types.listOf menuButtonType;
+        default = [ ];
+        description = "Chat menu buttons, globally and per chat.";
+      };
+    };
+  };
 
   renderBot = key: bot: {
     inherit key;
-    inherit (bot) id;
-    apiEndpoint = bot.apiEndpoint;
+    inherit (bot) id apiEndpoint;
     name = renderLocalized bot.name;
     description = renderLocalized bot.description;
     shortDescription = renderLocalized bot.shortDescription;
@@ -285,12 +288,7 @@ in
           message = "services.nix-bot-config.bots.${key}: web_app menu buttons require text and webAppUrl";
         }) bot.menuButton
         ++ map (g: {
-          assertion =
-            (lib.elem g.scope.type [
-              "chat"
-              "chat_administrators"
-              "chat_member"
-            ]) == (g.scope.chatId != null);
+          assertion = lib.elem g.scope.type chatScopes == (g.scope.chatId != null);
           message = "services.nix-bot-config.bots.${key}: scope ${g.scope.type} and chatId must be used together";
         }) bot.commands
         ++ map (g: {
