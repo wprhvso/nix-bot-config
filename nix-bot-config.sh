@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 config="${1:?usage: nix-bot-config CONFIG_JSON}"
 
 die() {

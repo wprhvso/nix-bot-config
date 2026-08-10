@@ -35,6 +35,6 @@
         default = nix-bot-config;
       };
 
-      formatter = forAllSystems (pkgs: pkgs.nixpkgs-fmt);
+      formatter = forAllSystems (pkgs: pkgs.nixfmt);
     };
 }
