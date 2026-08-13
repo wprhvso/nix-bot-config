@@ -24,7 +24,7 @@ token_for() {
 call() {
     local endpoint="$1" token="$2" method="$3" payload="$4" response ok
     response=$(curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' -d "$payload" "$endpoint/bot$token/$method") ||
-        die "$key: request to $method failed"
+        die "$key: request to $method failed: $(jq -c '{error_code, description}' <<<"$response" 2>/dev/null || printf '%s' "$response")"
     ok=$(jq -r '.ok // false' <<<"$response")
     [ "$ok" = "true" ] || die "$key: $method returned $(jq -c '{error_code, description}' <<<"$response")"
     jq -c '.result' <<<"$response"
