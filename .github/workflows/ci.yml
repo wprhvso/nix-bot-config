@@ -7,7 +7,7 @@ on:
 
 jobs:
   nix:
-    runs-on: nested
+    runs-on: pool
     steps:
       - uses: actions/checkout@v7
       - uses: wprhvso/qa-nix@v1
@@ -15,7 +15,7 @@ jobs:
           checks: fmt,statix,deadnix,flake
 
   shell:
-    runs-on: nested
+    runs-on: pool
     steps:
       - uses: actions/checkout@v7
       - uses: wprhvso/qa-shell@v1
