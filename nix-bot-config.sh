@@ -9,6 +9,10 @@ log() { printf 'nix-bot-config: %s\n' "$1"; }
 
 [ -r "$config" ] || die "config $config is not readable"
 
+jq -e 'type == "object" and (.tokensFile | type == "string") and (.apiEndpoint | type == "string") and (.bots | type == "array")' "$config" >/dev/null 2>&1 ||
+    die "config $config is not a valid nix-bot-config document"
+
+bots=$(jq -c '.bots[]' "$config") || die "config $config could not be read"
 tokens_file=$(jq -r '.tokensFile' "$config")
 default_endpoint=$(jq -r '.apiEndpoint' "$config")
 
@@ -23,7 +27,8 @@ token_for() {
 
 call() {
     local endpoint="$1" token="$2" method="$3" payload="$4" response ok
-    response=$(curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' -d "$payload" "$endpoint/bot$token/$method") ||
+    response=$(curl -sS --fail-with-body --connect-timeout 10 --max-time 30 \
+        -X POST -H 'Content-Type: application/json' -d "$payload" "$endpoint/bot$token/$method") ||
         die "$key: request to $method failed: $(jq -c '{error_code, description}' <<<"$response" 2>/dev/null || printf '%s' "$response")"
     ok=$(jq -r '.ok // false' <<<"$response")
     [ "$ok" = "true" ] || die "$key: $method returned $(jq -c '{error_code, description}' <<<"$response")"
@@ -90,11 +95,16 @@ sync_menu_button() {
     done < <(jq -c '.[]' <<<"$entries")
 }
 
+[ -n "$bots" ] || {
+    log "no bots configured"
+    exit 0
+}
+
 declare -A tokens
 while IFS= read -r bot; do
     key=$(jq -r '.key' <<<"$bot")
     tokens["$key"]=$(token_for "$(jq -r '.id' <<<"$bot")")
-done < <(jq -c '.bots[]' "$config")
+done <<<"$bots"
 
 while IFS= read -r bot; do
     key=$(jq -r '.key' <<<"$bot")
@@ -107,4 +117,4 @@ while IFS= read -r bot; do
     sync_commands "$(jq -c '.commands // []' <<<"$bot")"
     sync_rights "$(jq -c '.administratorRights // {}' <<<"$bot")"
     sync_menu_button "$(jq -c '.menuButton // []' <<<"$bot")"
-done < <(jq -c '.bots[]' "$config")
+done <<<"$bots"
