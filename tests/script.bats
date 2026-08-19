@@ -1,8 +1,6 @@
-setup() {
-    TEST_DIR=$(mktemp -d)
-    export MOCK_LOG="$TEST_DIR/calls.log"
-    export MOCK_READY="$TEST_DIR/ready"
-    : >"$MOCK_LOG"
+start_mock() {
+    [ -z "${MOCK_PID:-}" ] || kill "$MOCK_PID" 2>/dev/null || true
+    : >"$MOCK_READY"
 
     python3 "$BATS_TEST_DIRNAME/mock-api.py" 0 &
     MOCK_PID=$!
@@ -17,6 +15,15 @@ setup() {
         }
     done
     ENDPOINT="http://127.0.0.1:$(cat "$MOCK_READY")"
+}
+
+setup() {
+    TEST_DIR=$(mktemp -d)
+    export MOCK_LOG="$TEST_DIR/calls.log"
+    export MOCK_READY="$TEST_DIR/ready"
+    : >"$MOCK_LOG"
+
+    start_mock
 
     TOKENS="$TEST_DIR/tokens"
     printf '111:aaa\n222:bbb\n' >"$TOKENS"
@@ -221,14 +228,8 @@ setMyShortDescription" ]
 }
 
 @test "fails loudly when the api rejects the token" {
-    MOCK_REJECT="111:aaa"
-    export MOCK_REJECT
-    kill "$MOCK_PID"
-    : >"$MOCK_READY"
-    python3 "$BATS_TEST_DIRNAME/mock-api.py" 0 &
-    MOCK_PID=$!
-    while [ ! -s "$MOCK_READY" ]; do sleep 0.05; done
-    ENDPOINT="http://127.0.0.1:$(cat "$MOCK_READY")"
+    export MOCK_REJECT="111:aaa"
+    start_mock
 
     write_config "[$(bot '{"name": {"": "Bot"}}')]"
     run nix-bot-config "$CONFIG"
@@ -249,6 +250,53 @@ setMyShortDescription" ]
     run nix-bot-config "$CONFIG"
     [ "$status" -ne 0 ]
     [ -z "$(calls)" ]
+}
+
+@test "fails on a config that is not valid json" {
+    CONFIG="$TEST_DIR/config.json"
+    printf 'not json at all\n' >"$CONFIG"
+    run nix-bot-config "$CONFIG"
+    [ "$status" -ne 0 ]
+}
+
+@test "fails on a config without a bots list" {
+    CONFIG="$TEST_DIR/config.json"
+    jq -n --arg t "$TOKENS" --arg e "$ENDPOINT" '{tokensFile: $t, apiEndpoint: $e}' >"$CONFIG"
+    run nix-bot-config "$CONFIG"
+    [ "$status" -ne 0 ]
+}
+
+@test "accepts an empty bots list" {
+    write_config "[]"
+    run nix-bot-config "$CONFIG"
+    [ "$status" -eq 0 ]
+    [ ! -s "$MOCK_LOG" ]
+}
+
+@test "gives up instead of hanging when the api never answers" {
+    export MOCK_HANG="getMyName"
+    start_mock
+
+    write_config "[$(bot '{"name": {"": "Bot"}}')]"
+    run timeout 120 nix-bot-config "$CONFIG"
+    [ "$status" -ne 0 ]
+    [ "$status" -ne 124 ]
+}
+
+@test "reads a tokens file with carriage returns" {
+    printf '111:aaa\r\n222:bbb\r\n' >"$TOKENS"
+    write_config "[$(bot '{"name": {"": "Bot"}}')]"
+    run nix-bot-config "$CONFIG"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.token' "$MOCK_LOG" | sort -u)" = "111:aaa" ]
+}
+
+@test "keeps multi line values intact" {
+    write_config "[$(bot '{"description": {"": "first\nsecond"}}')]"
+    run nix-bot-config "$CONFIG"
+    [ "$status" -eq 0 ]
+    [ "$(sent setMyDescription | jq -r '.description')" = "first
+second" ]
 }
 
 @test "keeps values containing shell and json metacharacters intact" {

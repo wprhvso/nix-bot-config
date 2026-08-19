@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 RIGHTS_FIELDS = [
@@ -30,6 +31,7 @@ TEXT_FIELDS = {
 state = {}
 log_path = os.environ["MOCK_LOG"]
 reject = set(filter(None, os.environ.get("MOCK_REJECT", "").split(",")))
+hang = set(filter(None, os.environ.get("MOCK_HANG", "").split(",")))
 
 
 def bot_state(token):
@@ -124,6 +126,9 @@ class Handler(BaseHTTPRequestHandler):
         token = parts[0][3:]
         method = parts[1]
         record(token, method, payload)
+
+        if method in hang:
+            time.sleep(600)
 
         if token in reject:
             self.reply(401, {"ok": False, "error_code": 401, "description": "Unauthorized"})
