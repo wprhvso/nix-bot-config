@@ -35,6 +35,14 @@
         default = nix-bot-config;
       };
 
+      checks = forAllSystems (
+        pkgs:
+        import ./tests {
+          inherit pkgs;
+          package = self.packages.${pkgs.stdenv.hostPlatform.system}.nix-bot-config;
+        }
+      );
+
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
     };
 }
