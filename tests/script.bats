@@ -291,6 +291,21 @@ setMyShortDescription" ]
     [ "$(jq -r '.token' "$MOCK_LOG" | sort -u)" = "111:aaa" ]
 }
 
+@test "ignores surrounding whitespace in the tokens file" {
+    printf '  \n111:aaa  \n' >"$TOKENS"
+    write_config "[$(bot '{"name": {"": "Bot"}}')]"
+    run nix-bot-config "$CONFIG"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.token' "$MOCK_LOG" | sort -u)" = "111:aaa" ]
+}
+
+@test "handles bot keys containing spaces" {
+    write_config "[$(bot '{"key": "my bot", "name": {"": "Bot"}}')]"
+    run nix-bot-config "$CONFIG"
+    [ "$status" -eq 0 ]
+    [ "$(calls)" = "setMyName" ]
+}
+
 @test "keeps multi line values intact" {
     write_config "[$(bot '{"description": {"": "first\nsecond"}}')]"
     run nix-bot-config "$CONFIG"

@@ -237,6 +237,70 @@ in
 
   assert-clean = asserts "clean" fullBot [ ];
 
+  assert-unique-ids = asserts "unique-ids" (lib.recursiveUpdate base {
+    services.nix-bot-config.bots = {
+      one.id = 111;
+      two.id = 111;
+    };
+  }) [ "services.nix-bot-config.bots: bot ids must be unique, got 111" ];
+
+  assert-command-name = asserts "command-name" (lib.recursiveUpdate base {
+    services.nix-bot-config.bots.main = {
+      id = 111;
+      commands = [
+        {
+          commands = [
+            {
+              command = "Start Bot";
+              description = "Start";
+            }
+          ];
+        }
+      ];
+    };
+  }) [ "services.nix-bot-config.bots.main: Start Bot is not a valid command name" ];
+
+  assert-command-description = asserts "command-description" (lib.recursiveUpdate base {
+    services.nix-bot-config.bots.main = {
+      id = 111;
+      commands = [
+        {
+          commands = [
+            {
+              command = "start";
+              description = "";
+            }
+          ];
+        }
+      ];
+    };
+  }) [ "services.nix-bot-config.bots.main: description of start must be 1 to 256 characters" ];
+
+  assert-unique-command-groups = asserts "unique-command-groups" (lib.recursiveUpdate base
+    {
+      services.nix-bot-config.bots.main = {
+        id = 111;
+        commands = [
+          { commands = [ ]; }
+          {
+            scope.type = "default";
+            commands = [ ];
+          }
+        ];
+      };
+    }
+  ) [ "services.nix-bot-config.bots.main: each scope and language may only appear once in commands" ];
+
+  assert-unique-menu-buttons = asserts "unique-menu-buttons" (lib.recursiveUpdate base {
+    services.nix-bot-config.bots.main = {
+      id = 111;
+      menuButton = [
+        { type = "default"; }
+        { type = "commands"; }
+      ];
+    };
+  }) [ "services.nix-bot-config.bots.main: each chat may only appear once in menuButton" ];
+
   assert-web-app-needs-text = asserts "web-app-needs-text" (lib.recursiveUpdate base {
     services.nix-bot-config.bots.main = {
       id = 111;

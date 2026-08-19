@@ -26,6 +26,8 @@ let
     "canManageTopics"
   ];
 
+  duplicates = values: lib.unique (lib.filter (v: lib.count (o: o == v) values > 1) values);
+
   chatScopes = [
     "chat"
     "chat_administrators"
@@ -281,9 +283,38 @@ in
 
   config = lib.mkIf cfg.enable {
     assertions = lib.flatten (
-      lib.mapAttrsToList (
+      [
+        {
+          assertion = duplicates (lib.mapAttrsToList (_: bot: bot.id) cfg.bots) == [ ];
+          message =
+            "services.nix-bot-config.bots: bot ids must be unique, got "
+            + lib.concatMapStringsSep ", " toString (duplicates (lib.mapAttrsToList (_: bot: bot.id) cfg.bots));
+        }
+      ]
+      ++ lib.mapAttrsToList (
         key: bot:
-        map (b: {
+        map (c: {
+          assertion = builtins.match "[a-z0-9_]{1,32}" c.command != null;
+          message = "services.nix-bot-config.bots.${key}: ${c.command} is not a valid command name";
+        }) (lib.concatMap (g: g.commands) bot.commands)
+        ++ map (c: {
+          assertion = lib.stringLength c.description >= 1 && lib.stringLength c.description <= 256;
+          message = "services.nix-bot-config.bots.${key}: description of ${c.command} must be 1 to 256 characters";
+        }) (lib.concatMap (g: g.commands) bot.commands)
+        ++ [
+          {
+            assertion =
+              duplicates (
+                map (g: "${builtins.toJSON (renderScope g.scope)}/${toString g.languageCode}") bot.commands
+              ) == [ ];
+            message = "services.nix-bot-config.bots.${key}: each scope and language may only appear once in commands";
+          }
+          {
+            assertion = duplicates (map (b: toString b.chatId) bot.menuButton) == [ ];
+            message = "services.nix-bot-config.bots.${key}: each chat may only appear once in menuButton";
+          }
+        ]
+        ++ map (b: {
           assertion = b.type != "web_app" || (b.text != null && b.webAppUrl != null);
           message = "services.nix-bot-config.bots.${key}: web_app menu buttons require text and webAppUrl";
         }) bot.menuButton
