@@ -1,7 +1,7 @@
 { pkgs, package }:
 
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   script =
     pkgs.runCommand "script-tests"
