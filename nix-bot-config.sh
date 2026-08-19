@@ -20,7 +20,9 @@ default_endpoint=$(jq -r '.apiEndpoint' "$config")
 
 token_for() {
     local id="$1" line
-    line=$(tr -d '\r' <"$tokens_file" | grep -m1 -E "^${id}:" || true)
+    line=$(tr -d '\r' <"$tokens_file" | grep -m1 -E "^[[:space:]]*${id}:" || true)
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
     [ -n "$line" ] || die "no token for bot id $id in $tokens_file"
     printf '%s' "$line"
 }
