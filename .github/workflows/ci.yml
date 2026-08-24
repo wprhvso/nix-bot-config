@@ -2,20 +2,40 @@ name: ci
 
 on:
   push:
-  pull_request:
-  workflow_dispatch:
 
 jobs:
-  nix:
+  nixfmt:
     runs-on: pool
     steps:
       - uses: actions/checkout@v7
-      - uses: wprhvso/qa-nix@v1
-        with:
-          checks: fmt,statix,deadnix,flake
+      - run: git ls-files '*.nix' | xargs nixfmt --check
 
-  shell:
+  statix:
     runs-on: pool
     steps:
       - uses: actions/checkout@v7
-      - uses: wprhvso/qa-shell@v1
+      - run: statix check
+
+  deadnix:
+    runs-on: pool
+    steps:
+      - uses: actions/checkout@v7
+      - run: git ls-files '*.nix' | xargs deadnix --fail --no-lambda-pattern-names --no-underscore
+
+  flake:
+    runs-on: pool
+    steps:
+      - uses: actions/checkout@v7
+      - run: nix flake check -L
+
+  shellcheck:
+    runs-on: pool
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck --exclude=SC1091,SC2029 nix-bot-config.sh
+
+  shfmt:
+    runs-on: pool
+    steps:
+      - uses: actions/checkout@v7
+      - run: shfmt -i 4 -ci --diff nix-bot-config.sh

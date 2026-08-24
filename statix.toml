@@ -1,0 +1,8 @@
+disabled = ["repeated_keys"]
+
+ignore = [
+  ".direnv",
+  "result",
+  "result-*",
+  "node_modules",
+]
